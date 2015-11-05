@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
-def generate_gaussian(sigma, miu, num):
+def generate_gaussian(miu, sigma, num):
     x = miu + sigma * np.random.randn(num)
     return x
 
@@ -37,8 +37,6 @@ def weibull(a, num):
 
 
 if __name__ == '__main__':
-    weibull(20, 100000)
-
-    weibull(40, 100000)
-
-    weibull(100, 100000)
+    #data = list(generate_gaussian(80, 520, 5000)) + list(generate_gaussian(1000, 300, 1000))
+    data = list(generate_gaussian(195, 40, 500)) + list(generate_gaussian(450, 92, 8800)) + list(generate_gaussian(600, 33, 700))
+    plot_gaussian(200, 200, data)

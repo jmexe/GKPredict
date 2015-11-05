@@ -37,6 +37,16 @@ def load_data(filename):
 
     return data, t_miu
 
+def load_data_count(filename):
+    file = open(filename)
+    score = []
+    cnt = []
+    for line in file:
+        split = line.strip().split("\t")
+        score.append((int)(split[0]))
+        cnt.append((int)(split[1]))
+    return score, cnt
+
 def load_partial_data(filename):
     file = open(filename)
 
