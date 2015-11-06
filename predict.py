@@ -37,15 +37,20 @@ def load_data(filename):
 
     return data, t_miu
 
-def load_data_count(filename):
+def load_data_for_gmm(filename):
     file = open(filename)
-    score = []
-    cnt = []
+
+    t_miu = 0
+
+    data = []
     for line in file:
         split = line.strip().split("\t")
-        score.append((int)(split[0]))
-        cnt.append((int)(split[1]))
-    return score, cnt
+
+        for i in range((int)(split[1])):
+            t_miu += (int)(split[0])
+            data.append([(int)(split[0])])
+
+    return data, t_miu
 
 def load_partial_data(filename):
     file = open(filename)
