@@ -7,6 +7,9 @@ import matplotlib.mlab as mlab
 import numpy as np
 
 def train_gmm(filename):
+    """
+    Train GMM model
+    """
     g =GMM(n_components=3)
 
     data,t_miu = load_data_for_gmm(filename)
@@ -19,13 +22,16 @@ def generate_test():
     data = [[pt] for pt in lspts]
     return data, lspts
 
-def generate_samples():
-    samples = g.sample(100000)
+def generate_samples(g, num):
+    """
+    Given trained gmm model, generate samples and plotted on the graph
+    """
+    samples = g.sample(num)
     pts = []
     for pt in samples:
         pts.extend(pt)
 
-    num_bins = 1000
+    num_bins = 200
     n, bins, patches = plt.hist(pts, num_bins, normed=1, facecolor='green', alpha=0.5)
 
     plt.xlabel('Scores')
@@ -37,16 +43,19 @@ def generate_samples():
 
 
 if __name__ == '__main__':
-    print "TBD"
-    """
-    g, data = train_gmm("data.txt")
 
+    #train model
+    g, data = train_gmm("./data/gx-2015-l.txt")
+    generate_samples(g, 145318)
+
+    """
     x, pts = generate_test()
     y = - g.score_samples(x)[0]
-    print x
-    print y
+
+
+
     num_bins = 1000
     n, bins, patches = plt.hist(data, num_bins, normed=1, facecolor='green', alpha=0.5)
-    plt.plot(pts, y, 'r--')
+    #plt.plot(bins, y, 'r--')
     plt.show()
     """

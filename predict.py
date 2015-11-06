@@ -37,6 +37,27 @@ def load_data(filename):
 
     return data, t_miu
 
+
+def load_data_2(filename):
+    """
+    load data in format 2, the second column of each row is the count of the students of that score and the third column is the rank, the fourth column is the accumulated count
+    :param filename: filename
+    :return: data
+    """
+    file = open(filename)
+
+    t_miu = 0
+
+    data = []
+    for line in file:
+        split = line.strip().split("\t")
+
+        for i in range((int)(split[1])):
+            t_miu += (int)(split[0])
+            data.append((int)(split[0]))
+
+    return data, t_miu
+
 def load_data_for_gmm(filename):
     file = open(filename)
 
@@ -87,7 +108,7 @@ def load_data_with_projection(filename):
 
 def show_data(data, miu, sigma):
     import matplotlib.pyplot as plt
-    num_bins = 1000
+    num_bins = 200
     n, bins, patches = plt.hist(data, num_bins, normed=1, facecolor='green', alpha=0.5)
     y = mlab.normpdf(bins, miu, sigma)
     plt.plot(bins, y, 'r--')
@@ -116,7 +137,7 @@ def estimate(s1, s2, c1, c2, total):
 
 def guess(data):
     import matplotlib.pyplot as plt
-    num_bins = 1000
+    num_bins = 100
     n, bins, patches = plt.hist(data, num_bins, normed=1, facecolor='green', alpha=0.5)
 
 
@@ -132,12 +153,24 @@ def guess(data):
     plt.show()
 
 if __name__ == '__main__':
+    """
+    ./data/sd-2015-l.txt    562, 490, 80062, 150651, 257728
+    ./data/sd-2015-w.txt    568, 510, 21243, 53556, 138374
+    ./data/gx-2015-l.txt    480, 320, 25123, 97807, 145318
+    ./data/gx-2015-2.txt    530, ,380,
+    """
 
-    data, t_miu = load_data_with_projection("data.txt")
-    miu, sigma = estimate(562, 490, 80062, 150651, 257728)
 
-    #data, t_miu = load_data("wk.txt")
-    #miu, sigma = estimate(568, 510, 21243, 53556, 138374)
+    #Projected data
+    #data, t_miu = load_data_with_projection("data.txt")
+    #miu, sigma = estimate(562, 490, 80062, 150651, 257728)
+
+    #normal data
+    #data, t_miu = load_data("data.txt")
+    #miu, sigma = estimate(562, 490, 80062, 150651, 257728)
+
+    data, t_miu = load_data("./data/gx-2015-l.txt")
+    miu, sigma = estimate(480, 320, 25123, 97807, 145318)
 
     #estimate using the 750
     #data, t_miu = load_data("data.txt")
@@ -152,10 +185,10 @@ if __name__ == '__main__':
     #miu, sigma = estimate(562, 490, 80062, 150651, len(data))
 
 
-    guess(data)
+    #guess(data)
 
-    #print miu, sigma, t_miu / len(data)
-    #show_data(data, miu, abs(sigma))
+    print miu, sigma, t_miu / len(data)
+    show_data(data, miu, abs(sigma))
 
 
     #print score_project(230)
