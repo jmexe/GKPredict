@@ -1,4 +1,7 @@
 __author__ = 'Jmexe'
+#encoding=utf8
+
+
 import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt

@@ -1,4 +1,6 @@
 __author__ = 'Jmexe'
+#encoding=utf8
+
 from sklearn.mixture import GMM
 from predict import load_data_for_gmm
 import itertools

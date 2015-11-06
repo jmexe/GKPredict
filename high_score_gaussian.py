@@ -1,5 +1,5 @@
 __author__ = 'Jmexe'
-#encoding=utf-8
+#vim: set fileencoding:utf-8
 from scipy.special import erfinv
 from math import sqrt,log
 import matplotlib.pyplot as plt
@@ -40,7 +40,7 @@ def high_score_estimate(s1, s2, total):
     """
     Estimate the guassian in high score area
     Assume there is only 1 student get 720
-    Assume 90% of the students get higher score that s1(一本线)
+    Assume 90% of the students get higher score that s1
     """
     #miu = (s1 + 750) / 2
     #sigma = (750 - miu) / (erfinv(2 * 0.99999 - 1) * sqrt(2))
@@ -53,7 +53,7 @@ def high_score_estimate(s1, s2, total):
 def all_score_estimate(s1, c1, s2, c2, total):
     """
     Estimate the guassian of the overall data
-    Use the score and students count at 一本线 & 二本线
+    Use the score and students count at s1&s2
     """
     return estimate_guassian(s1, c1, s2, c2, total)
 
@@ -106,11 +106,9 @@ def draw_accumulate(a_miu, a_sig, h_miu, h_sig, total, h_num, corr_portion, thrh
 
 if __name__ == '__main__':
     """
-    #山东2015理科数据
-    #一本
+    #shandong - 2015 - lk
     s1 = 562
     c1 = 80062
-    #二本
     s2 = 490
     c2 = 150651
 
@@ -125,11 +123,9 @@ if __name__ == '__main__':
     """
 
     """
-    #山东2015文科数据
-    #一本
+    #shandong 2015 wk
     s1 = 568
     c1 = 21243
-    #二本
     s2 = 510
     c2 = 53556
 
@@ -142,12 +138,26 @@ if __name__ == '__main__':
     filename = "./data/sd-2015-w.txt"
     """
 
-
-    #广西2015理科数据
-    #一本
+    """
+    #guangxi 2015 lk
     s1 = 480
     c1 = 25123
-    #二本
+    s2 = 320
+    c2 = 97807
+
+    total = 145318
+    h_total = 10000
+
+    corr_portion = 0.2
+    h_miu_corr = 50
+    h_score_corr = 0
+    filename = "./data/gx-2015-l.txt"
+    """
+
+    #hebei 2015 lk
+
+    s1 = 480
+    c1 = 25123
     s2 = 320
     c2 = 97807
 
