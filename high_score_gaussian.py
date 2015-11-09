@@ -8,14 +8,23 @@ import numpy as np
 from scipy.stats import norm
 
 def load_data_in_dict(filename):
+    """
+    Given file path ,load the score data, the file should be in following format:
+    1st column -- score
+    2nd column -- count of students that got the score in column1
+    3rd column (optional) -- rank of the score
+    4th colunm (optional) -- accumulated count
+    :param filename: file path
+    :return: data
+    """
     file = open(filename)
 
     data = {}
-
+    acc_cnt = 0
     for line in file:
         split = line.strip().split("\t")
-
-        data[(int)(split[0])] = (int)(split[2])
+        acc_cnt += (int)(split[1])
+        data[(int)(split[0])] = acc_cnt
 
     return data
 
@@ -23,6 +32,7 @@ def estimate_guassian(s1, c1, s2, c2, total):
     """
     Given 2 data points, estimate the guassian parameters
     """
+    #Calculate
     p1 = 1 - (float) (c1 / ((float) (total)))
     p2 = 1 - (float) (c2 / ((float) (total)))
 
@@ -105,7 +115,7 @@ def draw_accumulate(a_miu, a_sig, h_miu, h_sig, total, h_num, corr_portion, thrh
     return lspts, y
 
 if __name__ == '__main__':
-    """
+
     #shandong - 2015 - lk
     s1 = 562
     c1 = 80062
@@ -113,14 +123,20 @@ if __name__ == '__main__':
     c2 = 150651
 
     total = 257728
-    h_total = 40000
 
+
+    #
+    h_total = 20000
+
+    #
     corr_portion = 0
-    h_miu_corr = 0
+
+    h_miu_corr = 50
+
     h_score_corr = 40
 
     filename = "./data/sd-2015-l.txt"
-    """
+
 
     """
     #shandong 2015 wk
@@ -154,6 +170,7 @@ if __name__ == '__main__':
     filename = "./data/gx-2015-l.txt"
     """
 
+    """
     #hebei 2015 lk
 
     s1 = 480
@@ -168,6 +185,7 @@ if __name__ == '__main__':
     h_miu_corr = 50
     h_score_corr = 0
     filename = "./data/gx-2015-l.txt"
+    """
 
     #estimate guassian in high score area
     h_miu, h_sig = high_score_estimate(s1, 700 + h_score_corr, h_total)
