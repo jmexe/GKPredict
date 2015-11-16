@@ -115,7 +115,7 @@ def draw_accumulate(a_miu, a_sig, h_miu, h_sig, total, h_num, corr_portion, thrh
     return lspts, y
 
 if __name__ == '__main__':
-
+    """
     #shandong - 2015 - lk
     s1 = 562
     c1 = 80062
@@ -136,9 +136,9 @@ if __name__ == '__main__':
     h_score_corr = 40
 
     filename = "./data/sd-2015-l.txt"
-
-
     """
+
+
     #shandong 2015 wk
     s1 = 568
     c1 = 21243
@@ -152,7 +152,7 @@ if __name__ == '__main__':
     h_miu_corr = 0
     h_score_corr = 5
     filename = "./data/sd-2015-w.txt"
-    """
+
 
     """
     #guangxi 2015 lk
