@@ -660,11 +660,13 @@ class GKModel(object):
 
         return err_span, err_rate
 
-def bath_process(s1, c1, s2, c2, total, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range):
+def bath_process(s1, c1, s2, c2, total, filpath, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range):
     """
     Process a batch of parameters, find the parameters that meet the requirements
     """
-
+    min_rate = 10
+    min_parameters = []
+    low_error_parameters = []
     for high_score_students_proportion in h_total_prop_range:
         for low_score_students_proportion in l_total_prop_range:
             for model_change_score_corr in h_stop_corr_range:
@@ -673,14 +675,23 @@ def bath_process(s1, c1, s2, c2, total, h_total_prop_range, l_total_prop_range, 
                         for high_start_corr in hi_start_corr_range:
 
                             model = GKModel(s1, c1, s2, c2, total, low_cut=200, high_score_students_proportion=high_score_students_proportion, low_score_students_proportion=low_score_students_proportion,  model_change_score_corr=model_change_score_corr, highest_score=highest_score, left_high_portion = left_high_portion, high_start_corr=high_start_corr)
-                            model.fit("./data/sd-2014-l.txt",delimiter='\t')
+                            model.fit(filpath,delimiter='\t')
 
                             err_span, err_rate = model.err_rate_span(300, 750)
                             print err_span, '\r',
+
+                            if err_rate < min_rate:
+                                min_rate = err_rate
+                                min_parameters = [high_score_students_proportion, low_score_students_proportion, model_change_score_corr, highest_score, left_high_portion, high_start_corr]
+
                             if err_span < 0.5:
                                 print ""
-                                print err_rate, err_span, high_score_students_proportion, low_score_students_proportion, model_change_score_corr, highest_score, left_high_portion, high_start_corr
+                                low_error_parameters.append([err_rate, err_span, high_score_students_proportion, low_score_students_proportion, model_change_score_corr, highest_score, left_high_portion, high_start_corr])
 
+    print min_parameters
+    print "low error rate models:"
+    for low_rate in low_error_parameters:
+        print low_rate
 
 
 if __name__ == '__main__':
@@ -718,14 +729,88 @@ if __name__ == '__main__':
     bath_process(572, 68820, 460, 173685, 263447, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range)
     """
 
-
+    """
     model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, high_score_students_proportion=0.05, low_score_students_proportion=0.06,  model_change_score_corr=40, highest_score=720, left_high_portion = 0.5, high_start_corr=-10)
     #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
     model.fit("./data/sd-2014-l.txt",delimiter='\t')
     #model.re_fit(562, 80062, 490, 150651, 257728)
-    model.show_model(100)
+    model.show_model()
     #给定一组分数，输出模拟排名
     print model.estimate_rank_for_scores([400, 450, 500, 550, 600, 620, 660, 680, 700])
     #输出一分一档表
     print model.sample_score_to_rank_table()
     print model.err_rate_span(300, 750)
+    """
+
+
+    """
+    广西2015理科数据
+    """
+
+    """Set the ranges of the paraemters"""
+
+    """
+    high_score_students_proportion_range = np.linspace(0.01, 0.03, 3)
+
+    #l_total_prop_range = np.linspace(0.01, 0.2, 10)
+    low_score_students_proportion_range = [0.06]
+
+    #h_stop_corr_range = np.linspace(-10, 50, 60)
+    model_change_score_corr = np.linspace(10, 50, 5)
+
+    highest_score_range = np.linspace(700, 740, 5)
+
+    left_high_portion_range = np.linspace(0, 1, 5)
+
+    high_start_corr_range = np.linspace(-10, 30, 5)
+
+
+    bath_process(480, 25476, 320, 98296, 145318, "./data/gx-2015-l.txt", high_score_students_proportion_range, low_score_students_proportion_range, model_change_score_corr, highest_score_range, left_high_portion_range, high_start_corr_range)
+    """
+    """
+    model = GKModel(480, 25476, 320, 98296, 145318, low_cut=200, high_score_students_proportion=0.03, low_score_students_proportion=0.06,  model_change_score_corr=50, highest_score=700, left_high_portion = 0, high_start_corr=10)
+    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
+    model.fit("./data/gx-2015-l.txt",delimiter='\t')
+    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.show_model()
+    """
+
+
+    """
+    广西2014理科数据
+    """
+
+    """Set the ranges of the paraemters"""
+
+    """
+    high_score_students_proportion_range = np.linspace(0.01, 0.03, 3)
+    #high_score_students_proportion_range = [0.03]
+    low_score_students_proportion_range = np.linspace(0.01, 0.2, 5)
+    #low_score_students_proportion_range = [0.06]
+
+    #h_stop_corr_range = np.linspace(-10, 50, 60)
+    model_change_score_corr = np.linspace(10, 50, 5)
+
+    highest_score_range = np.linspace(700, 730, 3)
+
+    left_high_portion_range = np.linspace(0, 1, 5)
+
+    high_start_corr_range = np.linspace(-10, 30, 5)
+
+
+    bath_process(520, 23763, 407, 72210, 144019, "./data/gx-2014-l.txt", high_score_students_proportion_range, low_score_students_proportion_range, model_change_score_corr, highest_score_range, left_high_portion_range, high_start_corr_range)
+
+
+    """
+
+    #model = GKModel(520, 23763, 407, 72210, 157000, low_cut=200, high_score_students_proportion=0.02, low_score_students_proportion=0.2,  model_change_score_corr=30, highest_score=710, left_high_portion = 0.5, high_start_corr=20)
+    model = GKModel(520, 23763, 407, 72210, 144019, low_cut=200, high_score_students_proportion=0.01, low_score_students_proportion=0.01,  model_change_score_corr=10, highest_score=700, left_high_portion = 1, high_start_corr=30)
+    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表min_rate
+    model.fit("./data/gx-2015-l.txt",delimiter='\t')
+
+    #model.show_data(200, 200, 750)
+    print model.err_rate_span(300, 750)
+    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.show_model()
+
+
