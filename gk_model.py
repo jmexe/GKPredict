@@ -6,6 +6,7 @@ import matplotlib.mlab as mlab
 from scipy.special import erfinv
 from math import sqrt
 import numpy as np
+import matplotlib.lines as mlines
 
 class GKModel(object):
     """--------------Initial---------------------------"""
@@ -319,13 +320,25 @@ class GKModel(object):
 
         #Get the pdf of the real data
         #Plot the data in the down-right sub-figure
-        x2, y2 = self.real_pdf(self.cut + 1, 750)
+        x2, y2, max_x2, max_y2 = self.real_pdf(self.cut + 1, 750)
         ax2.plot(x2, y2)
+
+        #Mark the peak of the ppf
+        real_ppf_line = mlines.Line2D([max_x2, max_x2], [0, max_y2], lw=2., alpha=0.5)
+        ax2.add_line(real_ppf_line)
+        ax2.annotate("peak - %d" % (max_x2), (max_x2, max_y2 / 10))
+
+
 
         #Get the pdf of the model
         #Plot the data in the down-right sub-figure
-        x3, y3 = self.pdf(self.cut + 1, 750)
+        x3, y3, max_x3, max_y3 = self.pdf(self.cut + 1, 750)
         ax3.plot(x3, y3)
+
+        #Mark the peak
+        model_ppf_line = mlines.Line2D([max_x3, max_x3], [0, max_y3], lw=2., alpha=0.5)
+        ax3.add_line(model_ppf_line)
+        ax3.annotate("peak - %d" % (max_x3), (max_x3, max_y3 / 10))
 
         plt.suptitle(info)
         plt.show()
@@ -541,6 +554,9 @@ class GKModel(object):
         x = []
         y = []
 
+        max_ppf = 0
+        max_point = 0
+
         total = self.estimate_rank(lo) - self.estimate_rank(hi)
         for score in range(lo, hi):
             cnt = self.estimate_rank(score - 1) - self.estimate_rank(score)
@@ -549,7 +565,12 @@ class GKModel(object):
             x.append(score)
             y.append(ppf)
 
-        return x, y
+            if ppf > max_ppf:
+                max_ppf = ppf
+                max_point = score
+
+
+        return x, y, max_point, max_ppf
 
     def real_pdf(self, lo, hi):
         """
@@ -566,7 +587,8 @@ class GKModel(object):
             low_rank = self.data[hi][1]
 
         total = low_rank - hi_rank
-
+        max_ppf = 0
+        max_pos = 0
         for score in range(lo, hi):
             ppf = 0
             if self.data.has_key(score):
@@ -575,10 +597,14 @@ class GKModel(object):
                 x.append(score)
                 y.append(ppf)
 
+                if ppf > max_ppf:
+                    max_ppf = ppf
+                    max_pos = score
+
         #plt.plot(x, y)
         #plt.show()
 
-        return x, y
+        return x, y, max_pos, max_ppf
 
     def get_rank_to_score(self, rank, total=-1):
         """
@@ -659,6 +685,15 @@ class GKModel(object):
         err_span = max_rate - min_rate
 
         return err_span, err_rate
+
+    def adjust(self, a_miu_corr, a_sig_corr, h_miu_corr, h_sig_corr):
+        self.a_miu += a_miu_corr
+        self.a_sig += a_sig_corr
+
+        self.h_miu += h_miu_corr
+        self.h_sig += h_sig_corr
+
+        self.prepare_estimate()
 
 def bath_process(s1, c1, s2, c2, total, filpath, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range):
     """
@@ -802,15 +837,62 @@ if __name__ == '__main__':
 
 
     """
-
+    """
     #model = GKModel(520, 23763, 407, 72210, 157000, low_cut=200, high_score_students_proportion=0.02, low_score_students_proportion=0.2,  model_change_score_corr=30, highest_score=710, left_high_portion = 0.5, high_start_corr=20)
-    model = GKModel(520, 23763, 407, 72210, 144019, low_cut=200, high_score_students_proportion=0.01, low_score_students_proportion=0.01,  model_change_score_corr=10, highest_score=700, left_high_portion = 1, high_start_corr=30)
+    model = GKModel(520, 23763, 407, 72210, 144019, low_cut=200, high_score_students_proportion=0.25, low_score_students_proportion=0.05,  model_change_score_corr=-25, highest_score=700, left_high_portion = 0.1, high_start_corr=30)
     #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表min_rate
     model.fit("./data/gx-2015-l.txt",delimiter='\t')
-
+    model.adjust(-50, -5, -60, 20)
     #model.show_data(200, 200, 750)
     print model.err_rate_span(300, 750)
     #model.re_fit(562, 80062, 490, 150651, 257728)
     model.show_model()
+    """
 
 
+
+
+    """ ---------------------------2015 山东文科数据----------------------------------"""
+    #-----------------初始化模型--------------------#
+    #必须给定的参数：
+    #一本线， 一本线排名， 二本线，二本线排名 -- (568, 21243, 510, 53556)
+    #总人数可以不给出，如果给定，可以直接调用estimate()函数去估计参数，不然必须通过fit()函数去读取文件，同时estimate
+    #low_cut是最低分数线，低于此分数线的分数不予考虑，默认值是200
+    #h_total_prop           --  高分考生比例，默认值0.08，范围(0, 0.25)
+    #l_total_prop           --  低分考生比例，默认值0, 范围(0, 0.2)
+    #h_stop_corr            --  切换模型分数线修正值, 修正范围(-100, 100)，默认为高分高斯的miu值，此处设置为-10， 则模型中模型切换的分数线为 h_miu - 10
+    #highest_score          --  最高分，默认是700，范围(650, 749)
+    #left_high_portion      --  高分高斯模型切换前考生缩放比例，范围[0, 1], 默认值1
+    #hi_start_corr          --  高分高斯模型起始分数修正值，范围(-50, 50), 默认值0
+    #model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, h_total_prop=0.04, l_total_prop=0.04,  h_stop_corr=40, highest_score=705, left_high_portion = 0.45, hi_start_corr=-30)
+
+    """Set the ranges of the paraemters"""
+    """
+    h_total_prop_range = np.linspace(0.05, 0.1, 3)
+
+    #l_total_prop_range = np.linspace(0.01, 0.2, 10)
+    l_total_prop_range = [0.06]
+
+    #h_stop_corr_range = np.linspace(-10, 50, 60)
+    h_stop_corr_range = [35, 40, 45]
+
+    highest_score_range = np.linspace(700, 740, 5)
+
+    left_high_portion_range = np.linspace(0, 1, 5)
+
+    hi_start_corr_range = np.linspace(-10, 30, 5)
+
+    bath_process(572, 68820, 460, 173685, 263447, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range)
+    """
+
+
+    model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, high_score_students_proportion=0.05, low_score_students_proportion=0.06,  model_change_score_corr=40, highest_score=720, left_high_portion = 0.5, high_start_corr=-10)
+    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
+    model.fit("./data/sd-2014-l.txt",delimiter='\t')
+    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.show_model()
+    #给定一组分数，输出模拟排名
+    print model.estimate_rank_for_scores([400, 450, 500, 550, 600, 620, 660, 680, 700])
+    #输出一分一档表
+    print model.sample_score_to_rank_table()
+    print model.err_rate_span(300, 750)
