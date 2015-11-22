@@ -693,37 +693,234 @@ class GKModel(object):
 
         return err_span, err_rate
 
+    def show_prmo_model(self):
+        """
+        Plotting model data, there are four sub-figures
 
-def bath_process(s1, c1, s2, c2, total, filpath, model_change_score_range, average_guassian_pos_corr_range, average_guassian_shape_corr_range, high_guassian_pos_corr_range, high_guassian_shape_corr_range, high_score_proportion_range, low_score_proportion_range):
+        up-left:    Error rate
+        up-right:   PDF of the real data and model
+        down-left:  Real data ppf
+        down-right: Model ppf
+
+        :return:
+        """
+        if self.check_data() is not True:
+            print "Please fit data first!"
+            return
+
+        if self.check_model() is not True:
+            self.estimate()
+
+        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
+
+        #Subfigure2 -- cumulative probability
+        x_pts = np.linspace(self.cut, 750, 100)
+        y21 = [1 - rk / (float) (self.total) for rk in self.estimate_rank_for_scores(x_pts)]
+
+        #Load the real cumulative proportion
+        y22 = []
+        for i, pt in enumerate(x_pts):
+            pt = (int) (pt)
+            if self.data.has_key(pt):
+                y22.append(1 - self.data[pt][1] / (float) (self.total))
+            else:
+                #If the score is not in the dict, use the nearest rank
+                if i == 0:
+                    y22.append(0)
+                elif pt < self.cut:
+                    y22.append(0)
+                elif pt > 750:
+                    y22.append(1)
+                else:
+                    #TODO -- optimize
+                    tmp = pt
+                    rank = -1
+                    while tmp > pt - 20:
+                        if self.data.has_key(tmp):
+                            rank = self.data[tmp][1]
+                            break
+                        tmp = tmp - 1
+
+                    if rank > 0:
+                        y22.append(1 - rank / (float) (self.total))
+                    else:
+                        y22.append(y22[i - 1])
+
+        ax1.plot(x_pts, y21, '--', linewidth=2)
+        ax1.plot(x_pts, y22, '-', linewidth=2)
+
+        ax1.grid(True)
+
+        model_change_line1  = mlines.Line2D([self.model_change_score, self.model_change_score],                                         [0, 1], lw=2., alpha=0.5, color='r')
+        hi_miu_line1        = mlines.Line2D([self.a_miu + self.average_guassian_pos_corr, self.a_miu + self.average_guassian_pos_corr], [0, 1], lw=2., alpha=0.5, color='g')
+        a_miu_line1         = mlines.Line2D([self.h_miu + self.high_guassian_pos_corr, self.h_miu + self.high_guassian_pos_corr],       [0, 1], lw=2., alpha=0.5, color='b')
+        ax1.add_line(model_change_line1)
+        ax1.add_line(hi_miu_line1)
+        ax1.add_line(a_miu_line1)
+
+
+        #Get the pdf of the real data
+        #Plot the data in the down-right sub-figure
+        x21, y21, max_x2, max_y2 = self.real_pdf(self.cut + 1, 750)
+
+        x22, y22, max_x3, max_y3 = self.pdf(self.cut + 1, 750)
+
+        ax2.plot(x21, y21, color='r')
+        ax2.plot(x22, y22, color='b')
+
+        plt.show()
+
+def auto_parameter(s1, c1, s2, c2, filpath, change_line_auto_range=[500, 600, 5], low_score_proportion_auto_range=[0, 0.02, 3],
+                   average_guassian_pos_auto_range=[-30, 30, 5], average_guassian_shape_corr_auto_range=[-20, 20, 1],
+                   high_guassian_pos_corr_auto_range=[-30, 30, 5], high_guassian_shape_corr_auto_range=[-20, 20, 2]):
+    file = open(filpath)
+
+    data = {}
+    acc_cnt = 0
+    for line in file:
+        #Split the row
+        split = line.strip().split("\t")
+        #Get the score(1st column)
+        score = (int)(split[0])
+        #Accumulate the count of students
+        acc_cnt += (int)(split[1])
+        #Add the count and score to the dictionary
+        data[(int)(split[0])] = [(int)(split[1]), acc_cnt]
+
+    total = acc_cnt
+
+
+    model_change_scores = np.arange(change_line_auto_range[0], change_line_auto_range[1], change_line_auto_range[2])
+
+    for model_change_score in model_change_scores:
+        if data.has_key(model_change_score):
+            high_score_proportion = model_change_score / (float)(total)
+            cnt = 0
+            #Finding Left
+            low_score_proportion_range          = np.linspace(  low_score_proportion_auto_range[0],         low_score_proportion_auto_range[1],         low_score_proportion_auto_range[2])
+            average_guassian_pos_corr_range     = np.arange(    average_guassian_pos_auto_range[0],         average_guassian_pos_auto_range[1],         average_guassian_pos_auto_range[2])
+            average_guassian_shape_corr_range   = np.arange(    average_guassian_shape_corr_auto_range[0],  average_guassian_shape_corr_auto_range[1],  average_guassian_shape_corr_auto_range[2])
+
+            lowest_span = 10
+            lowest_parameter = {}
+            for low_score_proportion in low_score_proportion_range:
+                for average_guassian_pos_corr in average_guassian_pos_corr_range:
+                    for average_guassian_shape_corr in average_guassian_shape_corr_range:
+
+                        print 'left-',cnt, '\r',
+                        cnt += 1
+
+                        model = GKModel(s1, c1, s2, c2, total, low_score_proportion=low_score_proportion, high_score_proportion=high_score_proportion, model_change_score=model_change_score,
+                                        average_guassian_pos_corr=average_guassian_pos_corr, average_guassian_shape_corr=average_guassian_shape_corr)
+                        model.fit(filpath,delimiter='\t')
+                        err_span, err_rate = model.err_rate_span(300, model.model_change_score)
+
+                        if err_span < lowest_span:
+                            lowest_span = err_span
+                            lowest_parameter["low_span"]                    = lowest_span
+                            lowest_parameter["model_change_score"]          = model_change_score
+                            lowest_parameter["high_score_proportion"]       = high_score_proportion
+                            lowest_parameter["low_score_proportion"]        = low_score_proportion
+                            lowest_parameter["average_guassian_pos_corr"]   = average_guassian_pos_corr
+                            lowest_parameter["average_guassian_shape_corr"] = average_guassian_shape_corr
+
+            cnt = 0
+            #Finding right
+            high_guassian_pos_corr_range    = np.arange(high_guassian_pos_corr_auto_range[0],   high_guassian_pos_corr_auto_range[1], high_guassian_pos_corr_auto_range[2])
+            high_guassian_shape_corr_range  = np.arange(high_guassian_shape_corr_auto_range[0], high_guassian_shape_corr_auto_range[1], high_guassian_shape_corr_auto_range[2])
+            lowest_span = 10
+            for high_guassian_pos_corr in high_guassian_pos_corr_range:
+                for high_guassian_shape_corr in high_guassian_shape_corr_range:
+
+                    print 'right-', cnt, '\r',
+                    cnt += 1
+
+                    model = GKModel(s1, c1, s2, c2, total, high_score_proportion=high_score_proportion, model_change_score=model_change_score,
+                                        high_guassian_pos_corr=high_guassian_pos_corr, high_guassian_shape_corr=high_guassian_shape_corr)
+                    model.fit(filpath,delimiter='\t')
+                    err_span, err_rate = model.err_rate_span(model.model_change_score, 750)
+
+                    if err_span < lowest_span:
+                        lowest_span = err_span
+                        lowest_parameter["high_span"]                   = err_span
+                        lowest_parameter["high_guassian_pos_corr"]      = high_guassian_pos_corr
+                        lowest_parameter["high_guassian_shape_corr"]    = high_guassian_shape_corr
+
+            print lowest_parameter
+
+
+
+
+def bath_process(s1, c1, s2, c2, total, filpath, model_change_score_range, average_guassian_pos_corr_range, average_guassian_shape_corr_range, high_guassian_pos_corr_range, high_guassian_shape_corr_range, high_score_proportion_range, low_score_proportion_range, average_or_high):
     """
     Process a batch of parameters, find the parameters that meet the requirements
     """
-
     min_rate = 10
     min_parameters = []
     low_error_parameters = []
-    for model_change_score in model_change_score_range:
+
+    if average_or_high == 1:
         for average_guassian_pos_corr in average_guassian_pos_corr_range:
             for average_guassian_shape_corr in average_guassian_shape_corr_range:
-                for high_guassian_pos_corr in high_guassian_pos_corr_range:
-                    for high_guassian_shape_corr in high_guassian_shape_corr_range:
-                        for high_score_proportion in high_score_proportion_range:
-                            for low_score_proportion in low_score_proportion_range:
+                for low_score_proportion in low_score_proportion_range:
+                    model = GKModel(s1, c1, s2, c2, total, low_cut=200, model_change_score=model_change_score_range[0], average_guassian_pos_corr=average_guassian_pos_corr, average_guassian_shape_corr=average_guassian_shape_corr,
+                                                    high_guassian_pos_corr=high_guassian_pos_corr_range[0], high_guassian_shape_corr=high_guassian_shape_corr_range[0], high_score_proportion=high_score_proportion_range[0], low_score_proportion=low_score_proportion)
+                    model.fit(filpath,delimiter='\t')
+                    err_span, err_rate = model.err_rate_span(300, model.model_change_score)
+                    print err_span, '\r',
 
-                                model = GKModel(s1, c1, s2, c2, total, low_cut=200, model_change_score=model_change_score, average_guassian_pos_corr=average_guassian_pos_corr, average_guassian_shape_corr=average_guassian_shape_corr,
-                                                high_guassian_pos_corr=high_guassian_pos_corr, high_guassian_shape_corr=high_guassian_shape_corr, high_score_proportion=high_score_proportion, low_score_proportion=low_score_proportion)
-                                model.fit(filpath,delimiter='\t')
+                    if err_rate < min_rate:
+                        min_rate = err_rate
+                        min_parameters = [err_rate, err_span, model_change_score_range[0], average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr_range[0], high_guassian_shape_corr_range[0], high_score_proportion_range[0], low_score_proportion]
 
-                                err_span, err_rate = model.err_rate_span(300, 750)
-                                print err_span, '\r',
+                    if err_span < 0.1:
+                        print ""
+                        low_error_parameters.append([err_rate, err_span, model_change_score_range[0], average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr_range[0], high_guassian_shape_corr_range[0], high_score_proportion_range[0], low_score_proportion])
 
-                                if err_rate < min_rate:
-                                    min_rate = err_rate
-                                    min_parameters = [err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion]
 
-                                if err_span < 0.5:
-                                    print ""
-                                    low_error_parameters.append([err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion])
+
+    elif average_or_high == 2:
+        for high_guassian_pos_corr in high_guassian_pos_corr_range:
+            for high_guassian_shape_corr in high_guassian_shape_corr_range:
+                model = GKModel(s1, c1, s2, c2, total, low_cut=200, model_change_score=model_change_score_range[0], average_guassian_pos_corr=average_guassian_pos_corr_range[0], average_guassian_shape_corr=average_guassian_shape_corr_range[0],
+                                high_guassian_pos_corr=high_guassian_pos_corr, high_guassian_shape_corr=high_guassian_shape_corr, high_score_proportion=high_score_proportion_range[0], low_score_proportion=low_score_proportion_range[0])
+                model.fit(filpath,delimiter='\t')
+
+                err_span, err_rate = model.err_rate_span(model.model_change_score, 750)
+                print err_span, '\r',
+
+                if err_rate < min_rate:
+                    min_rate = err_rate
+                    min_parameters = [err_rate, err_span, model_change_score_range[0], average_guassian_pos_corr_range[0], average_guassian_shape_corr_range[0], high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion_range[0], low_score_proportion_range[0]]
+
+                if err_span < 0.5:
+                    print ""
+                    low_error_parameters.append([err_rate, err_span, model_change_score_range[0], average_guassian_pos_corr_range[0], average_guassian_shape_corr_range[0], high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion_range[0], low_score_proportion_range[0]])
+
+
+    else:
+        for model_change_score in model_change_score_range:
+            for average_guassian_pos_corr in average_guassian_pos_corr_range:
+                for average_guassian_shape_corr in average_guassian_shape_corr_range:
+                    for high_guassian_pos_corr in high_guassian_pos_corr_range:
+                        for high_guassian_shape_corr in high_guassian_shape_corr_range:
+                            for high_score_proportion in high_score_proportion_range:
+                                for low_score_proportion in low_score_proportion_range:
+
+                                    model = GKModel(s1, c1, s2, c2, total, low_cut=200, model_change_score=model_change_score, average_guassian_pos_corr=average_guassian_pos_corr, average_guassian_shape_corr=average_guassian_shape_corr,
+                                                    high_guassian_pos_corr=high_guassian_pos_corr, high_guassian_shape_corr=high_guassian_shape_corr, high_score_proportion=high_score_proportion, low_score_proportion=low_score_proportion)
+                                    model.fit(filpath,delimiter='\t')
+
+                                    err_span, err_rate = model.err_rate_span(300, 750)
+                                    print err_span, '\r',
+
+                                    if err_rate < min_rate:
+                                        min_rate = err_rate
+                                        min_parameters = [err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion]
+
+                                    if err_span < 0.5:
+                                        print ""
+                                        low_error_parameters.append([err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion])
 
     print min_parameters
     print "low error rate models:"
@@ -732,60 +929,40 @@ def bath_process(s1, c1, s2, c2, total, filpath, model_change_score_range, avera
 
 
 if __name__ == '__main__':
-
-    """ ---------------------------2015 山东文科数据----------------------------------"""
-    """Set the ranges of the paraemters"""
     """
-    #Batch process
-    h_total_prop_range = np.linspace(0.05, 0.1, 3)
+    自动调参，可以手动设置调参范围
 
-    #l_total_prop_range = np.linspace(0.01, 0.2, 10)
-    l_total_prop_range = [0.06]
+    代码对于每一个模型切换线:
+        1、自动找到高分人数比例
+        2、在限定范围内找到左边高斯的最优参数
+        3、在限定范围内找到右边高斯的最优参数
+        4、输出最优的参数组合
+    change_line_auto_range                      -- 模型切换线的调节范围
+    low_score_proportion_auto_range             -- 低分人数调节范围
+    average_guassian_pos_auto_range             -- 左边高斯位置调节范围
+    average_guassian_shape_corr_auto_range      -- 左边高斯形状调节范围
+    high_guassian_pos_corr_auto_range           -- 右边高斯位置调节范围
+    high_guassian_shape_corr_auto_range         -- 右边高斯形状调节范围
 
-    #h_stop_corr_range = np.linspace(-10, 50, 60)
-    h_stop_corr_range = [35, 40, 45]
+    low_score_proportion_auto_range的数组内容为 (范围开始，范围结束，采样个数)
+    其余每个一个调解范围需要设定一个数组，数组内容为 [范围开始，范围结束，步长]
 
-    highest_score_range = np.linspace(700, 740, 5)
 
-    left_high_portion_range = np.linspace(0, 1, 5)
+    请在设定范围前考虑运算次数:
 
-    hi_start_corr_range = np.linspace(-10, 30, 5)
+        假设
+            n1 = change_line_auto_range中参数个数
+            n2 = low_score_proportion_auto_range
+            n3 = average_guassian_pos_auto_range
+            n4 = average_guassian_shape_corr_auto_range
+            n5 = high_guassian_pos_corr_auto_range
+            n6 = high_guassian_shape_corr_auto_range
 
-    bath_process(572, 68820, 460, 173685, 263447, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range)
+        代码运算次数
+            n1 * (n2 * n3 * n4 + n5 * n6)
+
+    以下是一组建议参数，代码会运行 7 * (3 * 13 * 41 + 13 * 21) = 13104次
     """
-    """
-    #low_score_proportion           --  低分人数比例
-    #high_score_proportion          --  高分人数比例
-    #
-    #average_guassian_pos_corr      --  左边高斯分布的位置
-    #average_guassian_shape_corr    --  左边高斯分布的形状
-    #
-    #high_guassian_pos_corr         --  右边高斯分布的位置
-    #high_guassian_shape_corr       --  右边高斯分布的形状
-    #
-    #model_change_score             --  模型切换分数
-    model = GKModel(572, 68820, 460, 173685, 263447, average_guassian_pos_corr=25, low_score_proportion=0.02, average_guassian_shape_corr=13, model_change_score=635, high_score_proportion=0.06, high_guassian_shape_corr=-6)
-    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/sd-2015-l.txt",delimiter='\t', )
-    model.re_fit(562, 80062, 490, 150651, 257728)
-    model.show_model()
-    #给定一组分数，输出模拟排名
-    print model.estimate_rank_for_scores([400, 450, 500, 550, 600, 620, 660, 680, 700])
-    """
-
-
-
-    """2015 云南 理科"""
-    """
-    model = GKModel(525, 23008, 445, 56508, 127757, high_score_proportion=0.04, average_guassian_shape_corr=-1, high_guassian_shape_corr=-7)
-    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/yn-2014-l.txt",delimiter='\t', )
-    model.show_model()
-    """
-
-    """2015 云南 理科"""
-
-    model = GKModel(565, 6246, 500, 24383, 92404, high_score_proportion=0.023, high_guassian_pos_corr=-50, high_guassian_shape_corr=-3)
-    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/yn-2014-w.txt",delimiter='\t', )
-    model.show_model()
+    auto_parameter(572, 68820, 460, 173685, "./data/sd-2014-l.txt", change_line_auto_range=[520, 580, 10], low_score_proportion_auto_range=[0, 0.02, 3],
+                   average_guassian_pos_auto_range=[-30, 30, 5], average_guassian_shape_corr_auto_range=[-20, 20, 1],
+                   high_guassian_pos_corr_auto_range=[-30, 30, 5], high_guassian_shape_corr_auto_range=[-20, 20, 2])
