@@ -10,7 +10,7 @@ import matplotlib.lines as mlines
 
 class GKModel(object):
     """--------------Initial---------------------------"""
-    def __init__(self, s1, c1, s2, c2, total=-1, low_cut=200, high_score_students_proportion=0.08, low_score_students_proportion=0,  model_change_score_corr=0, highest_score=0, left_high_portion = 0.3, high_start_corr=0):
+    def __init__(self, s1, c1, s2, c2, total=-1, low_cut=200, average_guassian_pos_corr=0, average_guassian_shape_corr=0, high_guassian_pos_corr=0, high_guassian_shape_corr=0, model_change_score=600, high_score_proportion=0.05, low_score_proportion=0, high_guassian_left_coef=0):
         """
         Initialize the model
         :param file_path: File path of the score data
@@ -28,43 +28,19 @@ class GKModel(object):
 
         #The lowest cutting score, the score under 200 will not be considered
         self.cut = low_cut
+        self.low_score_proportion = low_score_proportion
+        self.high_score_proportion = high_score_proportion
+        self.model_change_score = model_change_score
 
-        #Proportion of high score students, should be in range(0.005, 0.23)
-        if high_score_students_proportion < 0:
-            self.high_score_students_proportion = 0.005
-        elif high_score_students_proportion > 0.25:
-            self.high_score_students_proportion = 0.25
-        else:
-            self.high_score_students_proportion = high_score_students_proportion
+        self.high_guassian_left_coef = high_guassian_left_coef
 
-        #Proportion of high score students, in range(0~0.2)
-        if low_score_students_proportion < 0:
-            self.low_score_students_proportion = 0
-        elif low_score_students_proportion > 0.2:
-            self.low_score_students_proportion = 0.2
-        else:
-            self.low_score_students_proportion = low_score_students_proportion
+        #Correction parameters
+        self.average_guassian_pos_corr = average_guassian_pos_corr
+        self.average_guassian_shape_corr = average_guassian_shape_corr
+        self.high_guassian_pos_corr = high_guassian_pos_corr
+        self.high_guassian_shape_corr = high_guassian_shape_corr
 
-        #Correct the model change score in range(-100, 100)
-        if model_change_score_corr < -100:
-            self.model_change_score_corr = model_change_score_corr
-        elif model_change_score_corr > 100:
-            self.model_change_score_corr = model_change_score_corr
-        else:
-            self.model_change_score_corr = model_change_score_corr
-
-        #Highest score, in range(650, 749)
-        if highest_score < 650:
-            self.highest_score = 650
-        elif highest_score > 749:
-            self.highest_score = 749
-        else:
-            self.highest_score  =  highest_score
-
-        self.left_high_portion = left_high_portion
         self.prepared = False
-
-        self.high_start_corr = high_start_corr
 
     def fit(self, file_path, delimiter='\t'):
         """
@@ -123,6 +99,7 @@ class GKModel(object):
 
 
         self.estimate()
+        self.prepare_estimate()
 
 
     def load_data(self, file_path, delimiter='\t'):
@@ -183,11 +160,12 @@ class GKModel(object):
         :return: rank and the proportion of the rank
         """
         #estimate count using low score guassian
-        portion_in_normal_students = (1 - self.a_norm.cdf(score) / self.a_norm.cdf(self.model_change))
-        a_rank = (int) (self.total * (1 - self.low_score_students_proportion - self.high_score_students_proportion) * portion_in_normal_students)
+        portion_in_normal_students = (1 - self.a_norm.cdf(score) / self.a_norm.cdf(self.model_change_score))
+        a_rank = (int) (self.total * (1 - self.low_score_proportion - self.high_score_proportion) * portion_in_normal_students)
 
         #estimate count using high score guassian
-        portion_in_left_part_high_guassian = self.h_norm.cdf(self.model_change) - self.h_norm.cdf(score)
+
+        portion_in_left_part_high_guassian = self.h_norm.cdf(self.model_change_score) - self.h_norm.cdf(score)
         h_rank = (int) (portion_in_left_part_high_guassian * self.left_high_total)
 
         return a_rank + h_rank + self.right_high_total
@@ -199,7 +177,7 @@ class GKModel(object):
         :return: rank and the proportion of the rank
         """
 
-        higher_part_portion_in_high_guassian = (1 - self.h_norm.cdf(score)) / (1 - self.h_norm.cdf(self.model_change))
+        higher_part_portion_in_high_guassian = (1 - self.h_norm.cdf(score)) / (1 - self.h_norm.cdf(self.model_change_score))
         rank = (int) (self.right_high_total * higher_part_portion_in_high_guassian)
 
         return rank
@@ -209,13 +187,12 @@ class GKModel(object):
         Preparation function, used for estimate the students count for each score range
         :return:
         """
-        self.model_change = (int) (self.h_miu + self.model_change_score_corr)
 
-        self.h_norm = norm(self.h_miu, self.h_sig)
-        self.a_norm = norm(self.a_miu, self.a_sig)
+        self.h_norm = norm(self.h_miu + self.high_guassian_pos_corr, self.h_sig + self.high_guassian_shape_corr)
+        self.a_norm = norm(self.a_miu + self.average_guassian_pos_corr, self.a_sig + self.average_guassian_shape_corr)
 
-        self.left_high_total = (int) (self.left_high_portion * self.high_score_students_proportion * self.total) * (self.h_norm.cdf(self.model_change))
-        self.right_high_total = (int)(self.total * self.high_score_students_proportion) - self.left_high_total
+        self.left_high_total = (int) (self.high_guassian_left_coef * self.high_score_proportion * self.total) * (self.h_norm.cdf(self.model_change_score))
+        self.right_high_total = (int)(self.total * self.high_score_proportion) - self.left_high_total
 
         self.prepared = True
 
@@ -232,7 +209,7 @@ class GKModel(object):
 
         if score < self.cut or score > 750:
             return -1, 0
-        if score > self.h_miu + self.model_change_score_corr:
+        if score > self.model_change_score:
             return (int) (self.estimate_higscore_score_rank(score))
         else:
             return (int) (self.estimate_gmm_score_rank(score))
@@ -276,8 +253,22 @@ class GKModel(object):
         fig, ((ax0, ax1), (ax2, ax3)) = plt.subplots(nrows=2, ncols=2)
 
 
-        info = "highest_score:" + str(self.highest_score) + " low_score_students_proportion:" + str(self.low_score_students_proportion) + " high_score_students_proportion:" + str(self.high_score_students_proportion) + " left_high_portion:" + str(self.left_high_portion) + "model_change_score_corr:" + str(self.model_change_score_corr)
+        info = "high_score_proportion=" + str(self.high_score_proportion) + " low_score_proportion=" + str(self.low_score_proportion) + " high_guassian_shape_corr=" + str(self.high_guassian_shape_corr) + \
+               "\r\nhigh_guassian_pos_corr=" + str(self.high_guassian_pos_corr) + "average_guassian_pos_corr=" + str(self.average_guassian_pos_corr) + "average_guassian_shape_corr=" + str(self.average_guassian_shape_corr) +\
+               "model_change_score=" + str(self.model_change_score)
         x0, y0, err_rate = self.error_rate(self.cut + 1, 750)
+
+        max_rate = max(y0)
+        min_rate = min(y0)
+
+        #Mark the peak
+        model_change_line0  = mlines.Line2D([self.model_change_score, self.model_change_score],                                         [min_rate, max_rate], lw=2., alpha=0.5, color='r')
+        hi_miu_line0        = mlines.Line2D([self.a_miu + self.average_guassian_pos_corr, self.a_miu + self.average_guassian_pos_corr], [min_rate, max_rate], lw=2., alpha=0.5, color='g')
+        a_miu_line0         = mlines.Line2D([self.h_miu + self.high_guassian_pos_corr, self.h_miu + self.high_guassian_pos_corr],       [min_rate, max_rate], lw=2., alpha=0.5, color='b')
+        ax0.add_line(model_change_line0)
+        ax0.add_line(hi_miu_line0)
+        ax0.add_line(a_miu_line0)
+
         ax0.plot(x0, y0)
         ax0.set_title(err_rate)
         ax0.grid(True)
@@ -318,6 +309,14 @@ class GKModel(object):
         ax1.plot(x_pts, y21, '--', linewidth=2)
         ax1.plot(x_pts, y22, '-', linewidth=2)
 
+        model_change_line1  = mlines.Line2D([self.model_change_score, self.model_change_score],                                         [0, 1], lw=2., alpha=0.5, color='r')
+        hi_miu_line1        = mlines.Line2D([self.a_miu + self.average_guassian_pos_corr, self.a_miu + self.average_guassian_pos_corr], [0, 1], lw=2., alpha=0.5, color='g')
+        a_miu_line1         = mlines.Line2D([self.h_miu + self.high_guassian_pos_corr, self.h_miu + self.high_guassian_pos_corr],       [0, 1], lw=2., alpha=0.5, color='b')
+        ax1.add_line(model_change_line1)
+        ax1.add_line(hi_miu_line1)
+        ax1.add_line(a_miu_line1)
+
+
         #Get the pdf of the real data
         #Plot the data in the down-right sub-figure
         x2, y2, max_x2, max_y2 = self.real_pdf(self.cut + 1, 750)
@@ -335,9 +334,19 @@ class GKModel(object):
         x3, y3, max_x3, max_y3 = self.pdf(self.cut + 1, 750)
         ax3.plot(x3, y3)
 
+
+        model_change_line3  = mlines.Line2D([self.model_change_score, self.model_change_score],                                         [0, max_y3], lw=2., alpha=0.5, color='r')
+        hi_miu_line3        = mlines.Line2D([self.a_miu + self.average_guassian_pos_corr, self.a_miu + self.average_guassian_pos_corr], [0, max_y3], lw=2., alpha=0.5, color='g')
+        a_miu_line3         = mlines.Line2D([self.h_miu + self.high_guassian_pos_corr, self.h_miu + self.high_guassian_pos_corr],       [0, max_y3], lw=2., alpha=0.5, color='b')
+        model_ppf_line      = mlines.Line2D([max_x3, max_x3],                                                                           [0, max_y3], lw=2., alpha=0.5, color='y')
         #Mark the peak
-        model_ppf_line = mlines.Line2D([max_x3, max_x3], [0, max_y3], lw=2., alpha=0.5)
+
         ax3.add_line(model_ppf_line)
+        ax3.add_line(model_change_line3)
+        ax3.add_line(hi_miu_line3)
+        ax3.add_line(a_miu_line3)
+
+
         ax3.annotate("peak - %d" % (max_x3), (max_x3, max_y3 / 10))
 
         plt.suptitle(info)
@@ -422,13 +431,13 @@ class GKModel(object):
         (s1, c1), (s2, c2)
         Low-score proportion will be substracted from the total number
         """
-        self.a_miu, self.a_sig = self.all_score_estimate(self.s1, self.c1, self.s2, self.c2, self.total * (1 - self.low_score_students_proportion))
+        self.a_miu, self.a_sig = self.all_score_estimate(self.s1, self.c1, self.s2, self.c2, self.total * (1 - self.low_score_proportion))
 
         """
         Estimate the high-score-students-guassian mode with two points,
         (s1+correction, 0.9 * total-high-score-students-number), (highest-score, 1)
         """
-        self.h_miu, self.h_sig = self.high_score_estimate(self.s1 - self.high_start_corr, self.highest_score, self.total * self.high_score_students_proportion)
+        self.h_miu, self.h_sig = self.high_score_estimate(self.s1, 750, self.total * self.high_score_proportion)
         self.sample_score_to_rank_table()
 
 
@@ -606,10 +615,9 @@ class GKModel(object):
 
         return x, y, max_pos, max_ppf
 
+    #TODO Rank-to-score estimate
+    """
     def get_rank_to_score(self, rank, total=-1):
-        """
-        Given rank ,get the score
-        """
 
         if self.check_model() is not True:
             print "Models are not estimated yet!"
@@ -625,11 +633,11 @@ class GKModel(object):
             print "Rank must be in range(1, %d)" % total
             return
 
-        if rank < self.prop_table[(int)(self.h_miu + self.model_change_score_corr)] * total:
-            return (int) (erfinv(1 - 2 * rank / float(total * self.high_score_students_proportion)) * sqrt(2) * self.h_sig + self.h_miu)
+        if rank < self.prop_table[self.model_change_score] * total:
+            return (int) (erfinv(1 - 2 * rank / float(total * self.high_score_proportion)) * sqrt(2) * self.h_sig + self.h_miu)
         else:
             lo = self.cut
-            hi = self.prop_table[(int)(self.h_miu + self.model_change_score_corr)] * total
+            hi = self.prop_table[self.model_change_score] * total
 
             prop = rank / float(total)
 
@@ -644,8 +652,7 @@ class GKModel(object):
                     return lo
 
             return -1
-
-        return (int) (self.prop_table[score] * total)
+    """
 
 
     def err_rate_span(self, lo, hi):
@@ -686,42 +693,37 @@ class GKModel(object):
 
         return err_span, err_rate
 
-    def adjust(self, a_miu_corr, a_sig_corr, h_miu_corr, h_sig_corr):
-        self.a_miu += a_miu_corr
-        self.a_sig += a_sig_corr
 
-        self.h_miu += h_miu_corr
-        self.h_sig += h_sig_corr
-
-        self.prepare_estimate()
-
-def bath_process(s1, c1, s2, c2, total, filpath, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range):
+def bath_process(s1, c1, s2, c2, total, filpath, model_change_score_range, average_guassian_pos_corr_range, average_guassian_shape_corr_range, high_guassian_pos_corr_range, high_guassian_shape_corr_range, high_score_proportion_range, low_score_proportion_range):
     """
     Process a batch of parameters, find the parameters that meet the requirements
     """
+
     min_rate = 10
     min_parameters = []
     low_error_parameters = []
-    for high_score_students_proportion in h_total_prop_range:
-        for low_score_students_proportion in l_total_prop_range:
-            for model_change_score_corr in h_stop_corr_range:
-                for highest_score in highest_score_range:
-                    for left_high_portion in left_high_portion_range:
-                        for high_start_corr in hi_start_corr_range:
+    for model_change_score in model_change_score_range:
+        for average_guassian_pos_corr in average_guassian_pos_corr_range:
+            for average_guassian_shape_corr in average_guassian_shape_corr_range:
+                for high_guassian_pos_corr in high_guassian_pos_corr_range:
+                    for high_guassian_shape_corr in high_guassian_shape_corr_range:
+                        for high_score_proportion in high_score_proportion_range:
+                            for low_score_proportion in low_score_proportion_range:
 
-                            model = GKModel(s1, c1, s2, c2, total, low_cut=200, high_score_students_proportion=high_score_students_proportion, low_score_students_proportion=low_score_students_proportion,  model_change_score_corr=model_change_score_corr, highest_score=highest_score, left_high_portion = left_high_portion, high_start_corr=high_start_corr)
-                            model.fit(filpath,delimiter='\t')
+                                model = GKModel(s1, c1, s2, c2, total, low_cut=200, model_change_score=model_change_score, average_guassian_pos_corr=average_guassian_pos_corr, average_guassian_shape_corr=average_guassian_shape_corr,
+                                                high_guassian_pos_corr=high_guassian_pos_corr, high_guassian_shape_corr=high_guassian_shape_corr, high_score_proportion=high_score_proportion, low_score_proportion=low_score_proportion)
+                                model.fit(filpath,delimiter='\t')
 
-                            err_span, err_rate = model.err_rate_span(300, 750)
-                            print err_span, '\r',
+                                err_span, err_rate = model.err_rate_span(300, 750)
+                                print err_span, '\r',
 
-                            if err_rate < min_rate:
-                                min_rate = err_rate
-                                min_parameters = [high_score_students_proportion, low_score_students_proportion, model_change_score_corr, highest_score, left_high_portion, high_start_corr]
+                                if err_rate < min_rate:
+                                    min_rate = err_rate
+                                    min_parameters = [err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion]
 
-                            if err_span < 0.5:
-                                print ""
-                                low_error_parameters.append([err_rate, err_span, high_score_students_proportion, low_score_students_proportion, model_change_score_corr, highest_score, left_high_portion, high_start_corr])
+                                if err_span < 0.5:
+                                    print ""
+                                    low_error_parameters.append([err_rate, err_span, model_change_score, average_guassian_pos_corr, average_guassian_shape_corr, high_guassian_pos_corr, high_guassian_shape_corr, high_score_proportion, low_score_proportion])
 
     print min_parameters
     print "low error rate models:"
@@ -732,21 +734,9 @@ def bath_process(s1, c1, s2, c2, total, filpath, h_total_prop_range, l_total_pro
 if __name__ == '__main__':
 
     """ ---------------------------2015 山东文科数据----------------------------------"""
-    #-----------------初始化模型--------------------#
-    #必须给定的参数：
-    #一本线， 一本线排名， 二本线，二本线排名 -- (568, 21243, 510, 53556)
-    #总人数可以不给出，如果给定，可以直接调用estimate()函数去估计参数，不然必须通过fit()函数去读取文件，同时estimate
-    #low_cut是最低分数线，低于此分数线的分数不予考虑，默认值是200
-    #h_total_prop           --  高分考生比例，默认值0.08，范围(0, 0.25)
-    #l_total_prop           --  低分考生比例，默认值0, 范围(0, 0.2)
-    #h_stop_corr            --  切换模型分数线修正值, 修正范围(-100, 100)，默认为高分高斯的miu值，此处设置为-10， 则模型中模型切换的分数线为 h_miu - 10
-    #highest_score          --  最高分，默认是700，范围(650, 749)
-    #left_high_portion      --  高分高斯模型切换前考生缩放比例，范围[0, 1], 默认值1
-    #hi_start_corr          --  高分高斯模型起始分数修正值，范围(-50, 50), 默认值0
-    #model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, h_total_prop=0.04, l_total_prop=0.04,  h_stop_corr=40, highest_score=705, left_high_portion = 0.45, hi_start_corr=-30)
-
     """Set the ranges of the paraemters"""
     """
+    #Batch process
     h_total_prop_range = np.linspace(0.05, 0.1, 3)
 
     #l_total_prop_range = np.linspace(0.01, 0.2, 10)
@@ -763,136 +753,39 @@ if __name__ == '__main__':
 
     bath_process(572, 68820, 460, 173685, 263447, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range)
     """
-
     """
-    model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, high_score_students_proportion=0.05, low_score_students_proportion=0.06,  model_change_score_corr=40, highest_score=720, left_high_portion = 0.5, high_start_corr=-10)
+    #low_score_proportion           --  低分人数比例
+    #high_score_proportion          --  高分人数比例
+    #
+    #average_guassian_pos_corr      --  左边高斯分布的位置
+    #average_guassian_shape_corr    --  左边高斯分布的形状
+    #
+    #high_guassian_pos_corr         --  右边高斯分布的位置
+    #high_guassian_shape_corr       --  右边高斯分布的形状
+    #
+    #model_change_score             --  模型切换分数
+    model = GKModel(572, 68820, 460, 173685, 263447, average_guassian_pos_corr=25, low_score_proportion=0.02, average_guassian_shape_corr=13, model_change_score=635, high_score_proportion=0.06, high_guassian_shape_corr=-6)
     #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/sd-2014-l.txt",delimiter='\t')
-    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.fit("./data/sd-2015-l.txt",delimiter='\t', )
+    model.re_fit(562, 80062, 490, 150651, 257728)
     model.show_model()
     #给定一组分数，输出模拟排名
     print model.estimate_rank_for_scores([400, 450, 500, 550, 600, 620, 660, 680, 700])
-    #输出一分一档表
-    print model.sample_score_to_rank_table()
-    print model.err_rate_span(300, 750)
     """
 
 
+
+    """2015 云南 理科"""
     """
-    广西2015理科数据
-    """
-
-    """Set the ranges of the paraemters"""
-
-    """
-    high_score_students_proportion_range = np.linspace(0.01, 0.03, 3)
-
-    #l_total_prop_range = np.linspace(0.01, 0.2, 10)
-    low_score_students_proportion_range = [0.06]
-
-    #h_stop_corr_range = np.linspace(-10, 50, 60)
-    model_change_score_corr = np.linspace(10, 50, 5)
-
-    highest_score_range = np.linspace(700, 740, 5)
-
-    left_high_portion_range = np.linspace(0, 1, 5)
-
-    high_start_corr_range = np.linspace(-10, 30, 5)
-
-
-    bath_process(480, 25476, 320, 98296, 145318, "./data/gx-2015-l.txt", high_score_students_proportion_range, low_score_students_proportion_range, model_change_score_corr, highest_score_range, left_high_portion_range, high_start_corr_range)
-    """
-    """
-    model = GKModel(480, 25476, 320, 98296, 145318, low_cut=200, high_score_students_proportion=0.03, low_score_students_proportion=0.06,  model_change_score_corr=50, highest_score=700, left_high_portion = 0, high_start_corr=10)
+    model = GKModel(525, 23008, 445, 56508, 127757, high_score_proportion=0.04, average_guassian_shape_corr=-1, high_guassian_shape_corr=-7)
     #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/gx-2015-l.txt",delimiter='\t')
-    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.fit("./data/yn-2014-l.txt",delimiter='\t', )
     model.show_model()
     """
 
+    """2015 云南 理科"""
 
-    """
-    广西2014理科数据
-    """
-
-    """Set the ranges of the paraemters"""
-
-    """
-    high_score_students_proportion_range = np.linspace(0.01, 0.03, 3)
-    #high_score_students_proportion_range = [0.03]
-    low_score_students_proportion_range = np.linspace(0.01, 0.2, 5)
-    #low_score_students_proportion_range = [0.06]
-
-    #h_stop_corr_range = np.linspace(-10, 50, 60)
-    model_change_score_corr = np.linspace(10, 50, 5)
-
-    highest_score_range = np.linspace(700, 730, 3)
-
-    left_high_portion_range = np.linspace(0, 1, 5)
-
-    high_start_corr_range = np.linspace(-10, 30, 5)
-
-
-    bath_process(520, 23763, 407, 72210, 144019, "./data/gx-2014-l.txt", high_score_students_proportion_range, low_score_students_proportion_range, model_change_score_corr, highest_score_range, left_high_portion_range, high_start_corr_range)
-
-
-    """
-    """
-    #model = GKModel(520, 23763, 407, 72210, 157000, low_cut=200, high_score_students_proportion=0.02, low_score_students_proportion=0.2,  model_change_score_corr=30, highest_score=710, left_high_portion = 0.5, high_start_corr=20)
-    model = GKModel(520, 23763, 407, 72210, 144019, low_cut=200, high_score_students_proportion=0.25, low_score_students_proportion=0.05,  model_change_score_corr=-25, highest_score=700, left_high_portion = 0.1, high_start_corr=30)
-    #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表min_rate
-    model.fit("./data/gx-2015-l.txt",delimiter='\t')
-    model.adjust(-50, -5, -60, 20)
-    #model.show_data(200, 200, 750)
-    print model.err_rate_span(300, 750)
-    #model.re_fit(562, 80062, 490, 150651, 257728)
-    model.show_model()
-    """
-
-
-
-
-    """ ---------------------------2015 山东文科数据----------------------------------"""
-    #-----------------初始化模型--------------------#
-    #必须给定的参数：
-    #一本线， 一本线排名， 二本线，二本线排名 -- (568, 21243, 510, 53556)
-    #总人数可以不给出，如果给定，可以直接调用estimate()函数去估计参数，不然必须通过fit()函数去读取文件，同时estimate
-    #low_cut是最低分数线，低于此分数线的分数不予考虑，默认值是200
-    #h_total_prop           --  高分考生比例，默认值0.08，范围(0, 0.25)
-    #l_total_prop           --  低分考生比例，默认值0, 范围(0, 0.2)
-    #h_stop_corr            --  切换模型分数线修正值, 修正范围(-100, 100)，默认为高分高斯的miu值，此处设置为-10， 则模型中模型切换的分数线为 h_miu - 10
-    #highest_score          --  最高分，默认是700，范围(650, 749)
-    #left_high_portion      --  高分高斯模型切换前考生缩放比例，范围[0, 1], 默认值1
-    #hi_start_corr          --  高分高斯模型起始分数修正值，范围(-50, 50), 默认值0
-    #model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, h_total_prop=0.04, l_total_prop=0.04,  h_stop_corr=40, highest_score=705, left_high_portion = 0.45, hi_start_corr=-30)
-
-    """Set the ranges of the paraemters"""
-    """
-    h_total_prop_range = np.linspace(0.05, 0.1, 3)
-
-    #l_total_prop_range = np.linspace(0.01, 0.2, 10)
-    l_total_prop_range = [0.06]
-
-    #h_stop_corr_range = np.linspace(-10, 50, 60)
-    h_stop_corr_range = [35, 40, 45]
-
-    highest_score_range = np.linspace(700, 740, 5)
-
-    left_high_portion_range = np.linspace(0, 1, 5)
-
-    hi_start_corr_range = np.linspace(-10, 30, 5)
-
-    bath_process(572, 68820, 460, 173685, 263447, h_total_prop_range, l_total_prop_range, h_stop_corr_range, highest_score_range, left_high_portion_range, hi_start_corr_range)
-    """
-
-
-    model = GKModel(572, 68820, 460, 173685, 263447, low_cut=200, high_score_students_proportion=0.05, low_score_students_proportion=0.06,  model_change_score_corr=40, highest_score=720, left_high_portion = 0.5, high_start_corr=-10)
+    model = GKModel(565, 6246, 500, 24383, 92404, high_score_proportion=0.023, high_guassian_pos_corr=-50, high_guassian_shape_corr=-3)
     #Fit数据，读取数据，重新计算总人数，fit完后可以调用show_model()函数输出图表
-    model.fit("./data/sd-2014-l.txt",delimiter='\t')
-    #model.re_fit(562, 80062, 490, 150651, 257728)
+    model.fit("./data/yn-2014-w.txt",delimiter='\t', )
     model.show_model()
-    #给定一组分数，输出模拟排名
-    print model.estimate_rank_for_scores([400, 450, 500, 550, 600, 620, 660, 680, 700])
-    #输出一分一档表
-    print model.sample_score_to_rank_table()
-    print model.err_rate_span(300, 750)
